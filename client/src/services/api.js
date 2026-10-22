@@ -1,7 +1,13 @@
 // Dynamically resolve API URL for local dev and cloud production (e.g. Render)
 const getBaseUrl = () => {
-  const envUrl = import.meta.env.VITE_API_URL;
+  let envUrl = import.meta.env.VITE_API_URL;
   if (!envUrl) return '/api/v1';
+
+  // Force HTTPS when app runs on HTTPS (prevents Mixed Content blocking)
+  if (typeof window !== 'undefined' && window.location.protocol === 'https:' && envUrl.startsWith('http://')) {
+    envUrl = envUrl.replace('http://', 'https://');
+  }
+
   const clean = envUrl.replace(/\/+$/, '');
   return clean.endsWith('/api/v1') ? clean : `${clean}/api/v1`;
 };
@@ -34,7 +40,8 @@ async function request(endpoint, options = {}) {
   }
 
   try {
-    const res = await fetch(`${BASE_URL}${endpoint}`, config);
+    const fullUrl = `${BASE_URL}${endpoint}`;
+    const res = await fetch(fullUrl, config);
 
     // Handle CSV or Blob responses
     if (options.isBlob) {
@@ -53,6 +60,14 @@ async function request(endpoint, options = {}) {
 
     return data;
   } catch (err) {
+    if (err.name === 'TypeError' && err.message === 'Failed to fetch') {
+      const isRender = BASE_URL.includes('.onrender.com');
+      const hint = isRender
+        ? `Render free services sleep when inactive. Open your Render backend URL once in a new tab to wake it up (takes ~30s), or check that VITE_API_URL is correctly set on Vercel.`
+        : `Unable to connect to backend at ${BASE_URL}. Ensure backend is active and CORS is permitted.`;
+      console.error('[API Connection Error]:', hint, err);
+      throw new Error(hint);
+    }
     throw err;
   }
 }

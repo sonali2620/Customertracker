@@ -8,32 +8,24 @@ import { errorHandler } from './middleware/errorHandler.js';
 
 const app = express();
 
+// 0. Trust Proxy (Required for Cloud Deployments on Render/Heroku)
+app.set('trust proxy', 1);
+
 // 1. Helmet Security Headers
 app.use(helmet({
-  crossOriginResourcePolicy: { policy: 'cross-origin' }
+  crossOriginResourcePolicy: { policy: 'cross-origin' },
+  crossOriginOpenerPolicy: false
 }));
 
-// 2. CORS Configuration (Supports Vercel production/preview domains and local development)
-const allowedOrigin = process.env.CLIENT_URL || 'http://localhost:5173';
-const allowedOriginsList = allowedOrigin.split(',').map(item => item.trim());
-
-app.use(cors({
-  origin: (origin, callback) => {
-    if (
-      !origin ||
-      allowedOriginsList.includes(origin) ||
-      /^http:\/\/localhost(:\d+)?$/.test(origin) ||
-      /\.vercel\.app$/.test(origin)
-    ) {
-      callback(null, true);
-    } else {
-      callback(new Error('CORS blocked by ResolveIQ security policy'));
-    }
-  },
+// 2. CORS Configuration (Permissive origin reflection with credentials support for Vercel & localhost)
+const corsOptions = {
+  origin: true, // Dynamically reflects the requesting origin (fully compliant with credentials: true)
   credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
-}));
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS']
+};
+
+app.use(cors(corsOptions));
+app.options('*', cors(corsOptions));
 
 // 3. Body Parsing & Cookies
 app.use(express.json({ limit: '10mb' }));
