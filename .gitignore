@@ -1,0 +1,44 @@
+# Dependencies
+node_modules/
+**/node_modules/
+.pnp
+.pnp.js
+
+# Production build
+dist/
+**/dist/
+build/
+
+# Environment files
+.env
+.env.*
+**/.env
+**/.env.*
+!.env.example
+!**/.env.example
+
+# Database & local data
+server/prisma/*.db
+server/prisma/*.db-journal
+server/mongo-data/
+**/mongo-data/
+*.mongo-data/
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+*.log
+
+# Uploads
+server/uploads/*
+!server/uploads/.gitkeep
+
+# IDE & OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Test coverage
+coverage/

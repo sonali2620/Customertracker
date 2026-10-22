@@ -1,0 +1,276 @@
+// ResolveIQ - Prisma Database Schema for MongoDB
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mongodb"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  CUSTOMER
+  AGENT
+  MANAGER
+}
+
+enum Priority {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum Status {
+  OPEN
+  ASSIGNED
+  IN_PROGRESS
+  WAITING_FOR_CUSTOMER
+  RESOLVED
+  CLOSED
+  REOPENED
+}
+
+model User {
+  id           String   @id @default(auto()) @map("_id") @db.ObjectId
+  name         String
+  email        String   @unique
+  password     String
+  role         Role     @default(CUSTOMER)
+  department   String?
+  phone        String?
+  avatar       String?
+  isActive     Boolean  @default(true)
+  maxWorkload  Int      @default(10)
+  skills       String[] @default([])
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  // Relationships
+  customerComplaints   Complaint[]          @relation("CustomerComplaints")
+  assignedComplaints   Complaint[]          @relation("AgentComplaints")
+  comments             ComplaintComment[]
+  statusChanges        StatusHistory[]      @relation("StatusChangedBy")
+  assignedAssignments  AssignmentHistory[]  @relation("AssignedBy")
+  receivedAssignments  AssignmentHistory[]  @relation("AssignedAgent")
+  previousAssignments  AssignmentHistory[]  @relation("PreviousAgent")
+  notifications        Notification[]
+  feedbacks            Feedback[]
+  uploadedAttachments  Attachment[]
+  auditLogs            AuditLog[]
+
+  @@index([role, isActive])
+}
+
+model ComplaintCategory {
+  id              String      @id @default(auto()) @map("_id") @db.ObjectId
+  name            String      @unique
+  description     String
+  defaultPriority Priority    @default(MEDIUM)
+  isActive        Boolean     @default(true)
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+
+  complaints      Complaint[]
+}
+
+model Complaint {
+  id                    String             @id @default(auto()) @map("_id") @db.ObjectId
+  ticketNumber          String             @unique
+  title                 String
+  description           String
+  customerId            String             @db.ObjectId
+  categoryId            String             @db.ObjectId
+  priority              Priority           @default(MEDIUM)
+  suggestedPriority     Priority?
+  priorityReason        String?
+  status                Status             @default(OPEN)
+  assignedAgentId       String?            @db.ObjectId
+  impact                String?            @default("Moderate")
+  urgency               String?            @default("Normal")
+  affectedUsers         Int                @default(1)
+  
+  // SLA Deadlines and Timestamps (stored in UTC)
+  responseDeadline      DateTime?
+  resolutionDeadline    DateTime?
+  firstResponseAt       DateTime?
+  resolvedAt            DateTime?
+  closedAt              DateTime?
+  
+  // Reopening & Resolution details
+  resolutionNotes       String?
+  reopenReason          String?
+  reopenedCount         Int                @default(0)
+  lastReopenedAt        DateTime?
+  
+  // Escalation Flags
+  isOverdue             Boolean            @default(false)
+  isEscalated           Boolean            @default(false)
+  escalatedAt           DateTime?
+
+  createdAt             DateTime           @default(now())
+  updatedAt             DateTime           @updatedAt
+
+  // Relations
+  customer              User               @relation("CustomerComplaints", fields: [customerId], references: [id], onDelete: Restrict)
+  category              ComplaintCategory  @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  assignedAgent         User?              @relation("AgentComplaints", fields: [assignedAgentId], references: [id], onDelete: SetNull)
+  
+  comments              ComplaintComment[]
+  statusHistory         StatusHistory[]
+  assignmentHistory     AssignmentHistory[]
+  attachments           Attachment[]
+  escalationHistory     EscalationHistory[]
+  feedback              Feedback?
+
+  @@index([customerId])
+  @@index([assignedAgentId])
+  @@index([status])
+  @@index([priority])
+  @@index([categoryId])
+  @@index([createdAt])
+  @@index([resolutionDeadline])
+  @@index([isOverdue])
+}
+
+model Attachment {
+  id           String    @id @default(auto()) @map("_id") @db.ObjectId
+  complaintId  String    @db.ObjectId
+  fileName     String
+  originalName String
+  fileUrl      String
+  mimeType     String
+  sizeBytes    Int
+  uploadedById String    @db.ObjectId
+  createdAt    DateTime  @default(now())
+
+  complaint    Complaint @relation(fields: [complaintId], references: [id], onDelete: Cascade)
+  uploadedBy   User      @relation(fields: [uploadedById], references: [id], onDelete: Cascade)
+
+  @@index([complaintId])
+}
+
+model ComplaintComment {
+  id          String    @id @default(auto()) @map("_id") @db.ObjectId
+  complaintId String    @db.ObjectId
+  userId      String    @db.ObjectId
+  message     String
+  isInternal  Boolean   @default(false)
+  createdAt   DateTime  @default(now())
+
+  complaint   Complaint @relation(fields: [complaintId], references: [id], onDelete: Cascade)
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([complaintId])
+  @@index([isInternal])
+}
+
+model StatusHistory {
+  id             String    @id @default(auto()) @map("_id") @db.ObjectId
+  complaintId    String    @db.ObjectId
+  previousStatus Status
+  newStatus      Status
+  changedById    String    @db.ObjectId
+  reason         String?
+  createdAt      DateTime  @default(now())
+
+  complaint      Complaint @relation(fields: [complaintId], references: [id], onDelete: Cascade)
+  changedBy      User      @relation("StatusChangedBy", fields: [changedById], references: [id], onDelete: Cascade)
+
+  @@index([complaintId])
+  @@index([createdAt])
+}
+
+model AssignmentHistory {
+  id              String    @id @default(auto()) @map("_id") @db.ObjectId
+  complaintId     String    @db.ObjectId
+  previousAgentId String?   @db.ObjectId
+  newAgentId      String?   @db.ObjectId
+  assignedById    String    @db.ObjectId
+  reason          String?
+  createdAt       DateTime  @default(now())
+
+  complaint       Complaint @relation(fields: [complaintId], references: [id], onDelete: Cascade)
+  assignedBy      User      @relation("AssignedBy", fields: [assignedById], references: [id], onDelete: Cascade)
+  newAgent        User?     @relation("AssignedAgent", fields: [newAgentId], references: [id], onDelete: SetNull)
+  previousAgent   User?     @relation("PreviousAgent", fields: [previousAgentId], references: [id], onDelete: SetNull)
+
+  @@index([complaintId])
+  @@index([newAgentId])
+}
+
+model SLAPolicy {
+  id                 String    @id @default(auto()) @map("_id") @db.ObjectId
+  priority           Priority  @unique
+  firstResponseHours Float
+  resolutionHours    Float
+  description        String?
+  isDefault          Boolean   @default(true)
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+}
+
+model EscalationHistory {
+  id             String    @id @default(auto()) @map("_id") @db.ObjectId
+  complaintId    String    @db.ObjectId
+  level          Int       @default(1)
+  reason         String
+  notifiedUserId String?
+  resolved       Boolean   @default(false)
+  createdAt      DateTime  @default(now())
+
+  complaint      Complaint @relation(fields: [complaintId], references: [id], onDelete: Cascade)
+
+  @@index([complaintId])
+  @@index([createdAt])
+}
+
+model Notification {
+  id          String    @id @default(auto()) @map("_id") @db.ObjectId
+  userId      String    @db.ObjectId
+  title       String
+  message     String
+  type        String    @default("GENERAL")
+  complaintId String?
+  isRead      Boolean   @default(false)
+  createdAt   DateTime  @default(now())
+
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([isRead])
+  @@index([createdAt])
+}
+
+model Feedback {
+  id          String    @id @default(auto()) @map("_id") @db.ObjectId
+  complaintId String    @unique @db.ObjectId
+  customerId  String    @db.ObjectId
+  rating      Int       // 1 - 5
+  comment     String?
+  createdAt   DateTime  @default(now())
+
+  complaint   Complaint @relation(fields: [complaintId], references: [id], onDelete: Cascade)
+  customer    User      @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  @@index([customerId])
+  @@index([rating])
+}
+
+model AuditLog {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  action    String
+  entity    String
+  entityId  String?
+  userId    String?  @db.ObjectId
+  details   String?  // JSON formatted audit details
+  ipAddress String?
+  createdAt DateTime @default(now())
+
+  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([entity, entityId])
+  @@index([userId])
+  @@index([createdAt])
+}

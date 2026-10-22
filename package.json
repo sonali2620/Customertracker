@@ -1,0 +1,40 @@
+{
+  "name": "resolveiq",
+  "version": "1.0.0",
+  "description": "ResolveIQ — Intelligent Customer Complaint & Service Management System",
+  "private": true,
+  "workspaces": [
+    "server",
+    "client"
+  ],
+  "scripts": {
+    "setup": "npm install && cd server && npm install && npx prisma db push && npm run db:seed && cd ../client && npm install",
+    "dev": "concurrently -n \"SERVER,CLIENT\" -c \"blue,magenta\" \"npm run dev:server\" \"npm run dev:client\"",
+    "dev:server": "cd server && npm run dev",
+    "dev:client": "cd client && npm run dev",
+    "build": "cd client && npm run build",
+    "build:client": "cd client && npm run build",
+    "build:server": "cd server && npm run build",
+    "test": "npm run test:server && npm run test:client",
+    "test:server": "cd server && npm test",
+    "test:client": "cd client && npm test",
+    "db:migrate": "cd server && npx prisma db push",
+    "db:seed": "cd server && npm run db:seed",
+    "db:studio": "cd server && npx prisma studio",
+    "mongo:start": "mongod --port 27018 --dbpath server/mongo-data --replSet rs0 --bind_ip 127.0.0.1"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  },
+  "keywords": [
+    "customer-service",
+    "complaint-management",
+    "sla-monitoring",
+    "express",
+    "react",
+    "prisma",
+    "mongodb"
+  ],
+  "author": "ResolveIQ Team",
+  "license": "ISC"
+}
