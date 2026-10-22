@@ -55,10 +55,22 @@ const authLimiter = rateLimit({
 app.use('/api/v1/auth/login', authLimiter);
 app.use('/api/v1/auth/register', authLimiter);
 
-// 5. API Routes
+// 5. Root & Health Check Routes
+app.get(['/', '/health'], (req, res) => {
+  res.json({
+    success: true,
+    message: '🚀 ResolveIQ API Server is running smoothly',
+    status: 'healthy',
+    version: '1.0.0',
+    apiBase: '/api/v1',
+    timestamp: new Date().toISOString()
+  });
+});
+
+// 6. API Routes
 app.use('/api/v1', routes);
 
-// 6. 404 Handler for undefined API routes
+// 7. 404 Handler for undefined API routes
 app.use((req, res, next) => {
   res.status(404).json({
     success: false,
